@@ -1,0 +1,16 @@
+FROM alpine:latest
+
+RUN apk add --no-cache \
+    curl \
+    ca-certificates \
+    bash \
+    unzip \
+    gcompat \
+    pcre2
+
+RUN curl -sSL https://get.arturo-lang.io/latest | sh -s -- --mini
+
+ENV PATH="/root/.arturo/bin:${PATH}"
+
+WORKDIR /workspace
+ENTRYPOINT ["arturo"]
