@@ -92,16 +92,16 @@ Want to build and test the images locally? That's actually quite straightforward
 
 ```bash
 # Mini (stable)
-docker build -f Dockerfile-stable.mini -t arturolang/arturo:mini .
+docker build -f Dockerfile-stable.mini -t arturo:mini .
 
 # Full (stable)
-docker build -f Dockerfile-stable -t arturolang/arturo:full .
+docker build -f Dockerfile-stable -t arturo:full .
 
 # Mini (nightly)
-docker build -f Dockerfile-latest.mini -t arturolang/arturo:nightly .
+docker build -f Dockerfile-latest.mini -t arturo:nightly .
 
 # Full (nightly)
-docker build -f Dockerfile-latest -t arturolang/arturo:nightly-full .
+docker build -f Dockerfile-latest -t arturo:nightly-full .
 ```
 
 ---
