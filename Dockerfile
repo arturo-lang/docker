@@ -1,15 +1,23 @@
-FROM nimlang/nim 
+FROM ubuntu:24.04
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        unzip \
+        libgmp10 \
+        libmpfr6 \
+        libgtk-3-0 \
+        libwebkit2gtk-4.1-0
 
-RUN apt-get update
-RUN apt-get install -y build-essential git libgtk-3-dev libwebkit2gtk-4.0-dev libmpfr-dev
+RUN curl -sSL https://get.arturo-lang.io | sh
 
-RUN git clone https://github.com/arturo-lang/arturo.git
-RUN cd arturo && ./build.nims build --install --log
+RUN apt-get purge -y curl unzip && \
+    apt-get autoremove -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/root/.arturo/bin:${PATH}"
 
-WORKDIR /home
-
-ENTRYPOINT [ "/root/.arturo/bin/arturo" ]
+WORKDIR /workspace
+ENTRYPOINT ["arturo"]
