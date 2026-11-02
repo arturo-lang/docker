@@ -1,23 +1,24 @@
-FROM ubuntu:24.04
+# syntax=docker/dockerfile:1
+FROM debian:13-slim AS builder
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates \
-        unzip \
-        libgmp10 \
-        libmpfr6 \
-        libgtk-3-0 \
-        libwebkit2gtk-4.1-0
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl unzip
 
-RUN curl -sSL https://get.arturo-lang.io | sh
+# Download first so an HTTP failure cannot be hidden by the installer pipeline.
+RUN curl -fsSL https://get.arturo-lang.io -o /tmp/install-arturo.sh && \
+    sh /tmp/install-arturo.sh && \
+    test -x /root/.arturo/bin/arturo
 
-RUN apt-get purge -y curl unzip && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+COPY scripts/collect-runtime.sh /tmp/collect-runtime.sh
+RUN sh /tmp/collect-runtime.sh libpcre2-8-0 libgmp10 libmpfr6 libgtk-3-0t64 libwebkit2gtk-4.1-0
 
-ENV PATH="/root/.arturo/bin:${PATH}"
+FROM gcr.io/distroless/cc-debian13:latest
 
+COPY --from=builder /runtime/usr/lib/ /usr/lib/
+COPY --from=builder /runtime/usr/share/ /usr/share/
+COPY --from=builder /runtime/etc/fonts/ /etc/fonts/
+COPY --from=builder /root/.arturo/bin/ /usr/local/bin/
+
+ENV HOME=/root
 WORKDIR /workspace
-ENTRYPOINT ["arturo"]
+ENTRYPOINT ["/usr/local/bin/arturo"]

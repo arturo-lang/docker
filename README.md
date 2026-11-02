@@ -40,12 +40,12 @@ docker run arturolang/arturo -e "print 'Hello, World!'"
 
 ## Available Tags
 
-| Tag | Size | Description |
-|-----|------|-------------|
-| `latest`, `mini` | ~ 9 MB | Mini build (default) |
-| `full` | ~ 230 MB | Full build with high-precision math & GUI support |
-| `nightly` | ~ 9 MB | Nightly mini build |
-| `nightly-full` | ~ 23O MB | Nightly full build |
+| Tag | Description |
+|-----|-------------|
+| `latest`, `mini` | Mini build (default) |
+| `full` | Full build with high-precision math & GUI dependencies |
+| `nightly` | Nightly mini build |
+| `nightly-full` | Nightly full build |
 
 > [!NOTE]
 > Not sure which variant to use? See the [Build Variants documentation](https://arturo-lang.io/documentation/getting-started/#build-variants) for details on mini vs full. Hint: most likely you want need anything other than the default/mini build 😉
@@ -83,6 +83,24 @@ docker run -it arturolang/arturo:nightly
 # Full nightly
 docker run -it arturolang/arturo:nightly-full
 ```
+
+## Runtime images
+
+All four variants use a distroless Debian 13 runtime with no shell or package
+manager. A separate Debian builder downloads Arturo and resolves its runtime
+libraries; installation tools stay in the builder. Mini includes regex libraries,
+while full also includes GMP, MPFR, GTK and WebKit, including their runtime data
+and helper processes. Full images are consequently larger than mini images.
+
+Use the Arturo entrypoint directly: shell commands such as `sh` and `bash`, and
+Arturo operations that launch external system commands, require a separate image
+with those programs installed. GUI use still requires a display and appropriate
+container configuration. CI validates headless execution, not an interactive GUI.
+
+GitHub Actions builds and smoke-tests every Dockerfile on Linux amd64 for pull
+requests and pushes to `master`. Builds are not published by validation. Other
+architectures are not covered by this workflow. Image sizes depend on upstream
+artifacts and runtime dependencies and are not fixed estimates.
 
 ## Contributing
 

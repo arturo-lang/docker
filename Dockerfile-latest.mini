@@ -1,15 +1,22 @@
-# Current nightly binaries require glibc symbols unavailable in Alpine gcompat.
-FROM debian:13-slim
+# syntax=docker/dockerfile:1
+FROM debian:13-slim AS builder
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl ca-certificates unzip jq libpcre2-8-0 && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl unzip jq
 
 COPY scripts/install-nightly.sh /tmp/install-nightly.sh
 RUN sh /tmp/install-nightly.sh mini
 
-ENV PATH="/root/.arturo/bin:${PATH}"
+COPY scripts/collect-runtime.sh /tmp/collect-runtime.sh
+RUN sh /tmp/collect-runtime.sh libpcre2-8-0
 
+FROM gcr.io/distroless/cc-debian13:latest
+
+COPY --from=builder /runtime/usr/lib/ /usr/lib/
+COPY --from=builder /runtime/usr/share/ /usr/share/
+COPY --from=builder /runtime/etc/fonts/ /etc/fonts/
+COPY --from=builder /root/.arturo/bin/ /usr/local/bin/
+
+ENV HOME=/root
 WORKDIR /workspace
-ENTRYPOINT ["arturo"]
+ENTRYPOINT ["/usr/local/bin/arturo"]
