@@ -5,12 +5,14 @@ RUN apt-get update && \
         curl \
         ca-certificates \
         unzip \
+        jq \
         libgmp10 \
         libmpfr6 \
         libgtk-3-0 \
         libwebkit2gtk-4.1-0
 
-RUN curl -sSL https://get.arturo-lang.io/latest | sh
+COPY scripts/install-nightly.sh /tmp/install-nightly.sh
+RUN sh /tmp/install-nightly.sh full
 
 RUN apt-get purge -y curl unzip && \
     apt-get autoremove -y && \
