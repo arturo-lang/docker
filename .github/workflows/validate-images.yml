@@ -1,0 +1,97 @@
+name: Validate Docker images
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-images-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: ${{ matrix.dockerfile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile-stable.mini
+          - Dockerfile-stable
+          - Dockerfile-latest.mini
+          - Dockerfile-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image without publishing
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: arturo:validation
+      - name: Validate inline execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          output=$(docker run --rm arturo:validation -e 'print "Hello from CI"')
+          test "$output" = 'Hello from CI'
+      - name: Validate mounted script and workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/arturo-smoke"
+          printf 'print "Hello from a mounted script"\n' > "$RUNNER_TEMP/arturo-smoke/smoke.art"
+          output=$(docker run --rm -v "$RUNNER_TEMP/arturo-smoke:/workspace:ro" arturo:validation smoke.art)
+          test "$output" = 'Hello from a mounted script'
+      - name: Install virtual display for full-image validation
+        if: ${{ !endsWith(matrix.dockerfile, '.mini') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+      - name: Validate WebKit rendering on a virtual display
+        if: ${{ !endsWith(matrix.dockerfile, '.mini') }}
+        run: bash scripts/validate-gui.sh
+      - name: Check out baseline for size comparison
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .size-baseline
+      - name: Build baseline image without publishing
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .size-baseline
+          file: .size-baseline/${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: arturo:baseline
+      - name: Report image storage comparison
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          baseline=$(docker image inspect arturo:baseline --format '{{.Size}}')
+          current=$(docker image inspect arturo:validation --format '{{.Size}}')
+          awk -v name="$DOCKERFILE" -v base="$baseline" -v current="$current" \
+            'BEGIN {
+              printf "IMAGE_SIZE_BYTES %s %.0f %.0f\n", name, base, current;
+              print "| Dockerfile | Before (MiB) | After (MiB) | Saved (MiB) | Saved (%) |";
+              print "|---|---:|---:|---:|---:|";
+              printf "| %s | %.2f | %.2f | %.2f | %.1f%% |\n", name, base/1048576, current/1048576, (base-current)/1048576, 100*(base-current)/base;
+            }' | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '\nUncompressed Linux amd64 image sizes, measured with Docker image inspect. Baseline commit: `%s`. Negative savings indicate growth.\n' "$BASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          test "$current" -lt "$baseline" || { echo "Image must be smaller than its baseline" >&2; exit 1; }

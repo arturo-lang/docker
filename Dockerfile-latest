@@ -1,23 +1,21 @@
-FROM ubuntu:24.04
+# syntax=docker/dockerfile:1
+FROM ubuntu:24.04 AS downloader
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl unzip jq
+COPY scripts/install-nightly.sh /tmp/install-nightly.sh
+RUN sh /tmp/install-nightly.sh full
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        ca-certificates \
-        unzip \
-        libgmp10 \
-        libmpfr6 \
-        libgtk-3-0 \
-        libwebkit2gtk-4.1-0
+# Match the existing full image's library versions. No download tools enter this
+# stage; WebKit resolves its own GTK dependencies without a separate GTK install.
+FROM ubuntu:24.04 AS runtime-dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libpcre2-8-0 libssl3t64 libstdc++6 libgmp10 libmpfr6 libwebkit2gtk-4.1-0
+COPY --from=downloader /root/.arturo/bin/ /opt/arturo/
+COPY scripts/collect-runtime.sh /tmp/collect-runtime.sh
+RUN sh /tmp/collect-runtime.sh full
 
-RUN curl -sSL https://get.arturo-lang.io/latest | sh
-
-RUN apt-get purge -y curl unzip && \
-    apt-get autoremove -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-ENV PATH="/root/.arturo/bin:${PATH}"
-
+FROM scratch
+COPY --from=runtime-dependencies /runtime/ /
+ENV HOME=/root
 WORKDIR /workspace
-ENTRYPOINT ["arturo"]
+ENTRYPOINT ["/usr/local/bin/arturo"]
