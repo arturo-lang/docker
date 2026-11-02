@@ -1,13 +1,10 @@
-FROM alpine:latest
+# Current nightly binaries require glibc symbols unavailable in Alpine gcompat.
+FROM debian:13-slim
 
-RUN apk add --no-cache \
-    curl \
-    ca-certificates \
-    bash \
-    unzip \
-    jq \
-    gcompat \
-    pcre2
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl ca-certificates unzip jq libpcre2-8-0 && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY scripts/install-nightly.sh /tmp/install-nightly.sh
 RUN sh /tmp/install-nightly.sh mini
