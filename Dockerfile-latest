@@ -1,22 +1,21 @@
 # syntax=docker/dockerfile:1
-FROM debian:13-slim AS builder
-
+FROM ubuntu:24.04 AS downloader
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl unzip jq
-
 COPY scripts/install-nightly.sh /tmp/install-nightly.sh
 RUN sh /tmp/install-nightly.sh full
 
+# Match the existing full image's library versions. No download tools enter this
+# stage; WebKit resolves its own GTK dependencies without a separate GTK install.
+FROM ubuntu:24.04 AS runtime-dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates libpcre2-8-0 libssl3t64 libstdc++6 libgmp10 libmpfr6 libwebkit2gtk-4.1-0
+COPY --from=downloader /root/.arturo/bin/ /opt/arturo/
 COPY scripts/collect-runtime.sh /tmp/collect-runtime.sh
-RUN sh /tmp/collect-runtime.sh libpcre2-8-0 libgmp10 libmpfr6 libgtk-3-0t64 libwebkit2gtk-4.1-0
+RUN sh /tmp/collect-runtime.sh full
 
-FROM gcr.io/distroless/cc-debian13:latest
-
-COPY --from=builder /runtime/usr/lib/ /usr/lib/
-COPY --from=builder /runtime/usr/share/ /usr/share/
-COPY --from=builder /runtime/etc/fonts/ /etc/fonts/
-COPY --from=builder /root/.arturo/bin/ /usr/local/bin/
-
+FROM scratch
+COPY --from=runtime-dependencies /runtime/ /
 ENV HOME=/root
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/arturo"]

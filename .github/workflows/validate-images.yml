@@ -52,6 +52,14 @@ jobs:
           printf 'print "Hello from a mounted script"\n' > "$RUNNER_TEMP/arturo-smoke/smoke.art"
           output=$(docker run --rm -v "$RUNNER_TEMP/arturo-smoke:/workspace:ro" arturo:validation smoke.art)
           test "$output" = 'Hello from a mounted script'
+      - name: Install virtual display for full-image validation
+        if: ${{ !endsWith(matrix.dockerfile, '.mini') }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb
+      - name: Validate WebKit rendering on a virtual display
+        if: ${{ !endsWith(matrix.dockerfile, '.mini') }}
+        run: bash scripts/validate-gui.sh
       - name: Check out baseline for size comparison
         if: github.event_name == 'pull_request'
         uses: actions/checkout@v4
@@ -86,3 +94,4 @@ jobs:
               printf "| %s | %.2f | %.2f | %.2f | %.1f%% |\n", name, base/1048576, current/1048576, (base-current)/1048576, 100*(base-current)/base;
             }' | tee -a "$GITHUB_STEP_SUMMARY"
           printf '\nUncompressed Linux amd64 image sizes, measured with Docker image inspect. Baseline commit: `%s`. Negative savings indicate growth.\n' "$BASE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          test "$current" -lt "$baseline" || { echo "Image must be smaller than its baseline" >&2; exit 1; }

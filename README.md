@@ -86,16 +86,18 @@ docker run -it arturolang/arturo:nightly-full
 
 ## Runtime images
 
-All four variants use a distroless Debian 13 runtime with no shell or package
-manager. A separate Debian builder downloads Arturo and resolves its runtime
-libraries; installation tools stay in the builder. Mini includes regex libraries,
-while full also includes GMP, MPFR, GTK and WebKit, including their runtime data
-and helper processes. Full images are consequently larger than mini images.
+All four variants use a `scratch` runtime containing Arturo, its runtime
+libraries, certificates and required data, with no shell or package manager.
+Separate Ubuntu 24.04 stages download Arturo and install its dependencies. Mini
+copies the loader and selected libraries rather than an entire distribution.
+Full also retains GMP, MPFR and WebKit, including WebKit's transitive GTK
+dependencies, runtime data and sandbox helper processes.
 
 Use the Arturo entrypoint directly: shell commands such as `sh` and `bash`, and
 Arturo operations that launch external system commands, require a separate image
 with those programs installed. GUI use still requires a display and appropriate
-container configuration. CI validates headless execution, not an interactive GUI.
+container configuration. CI validates CLI execution and full-variant WebKit loading on a virtual X11
+display. Interactive desktop integration still requires host setup.
 
 GitHub Actions builds and smoke-tests every Dockerfile on Linux amd64 for pull
 requests and pushes to `master`. Builds are not published by validation. Other
