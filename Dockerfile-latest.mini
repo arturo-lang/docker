@@ -5,10 +5,12 @@ RUN apk add --no-cache \
     ca-certificates \
     bash \
     unzip \
+    jq \
     gcompat \
     pcre2
 
-RUN curl -sSL https://get.arturo-lang.io/latest | sh -s -- --mini
+COPY scripts/install-nightly.sh /tmp/install-nightly.sh
+RUN sh /tmp/install-nightly.sh mini
 
 ENV PATH="/root/.arturo/bin:${PATH}"
 
