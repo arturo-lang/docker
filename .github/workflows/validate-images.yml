@@ -52,3 +52,37 @@ jobs:
           printf 'print "Hello from a mounted script"\n' > "$RUNNER_TEMP/arturo-smoke/smoke.art"
           output=$(docker run --rm -v "$RUNNER_TEMP/arturo-smoke:/workspace:ro" arturo:validation smoke.art)
           test "$output" = 'Hello from a mounted script'
+      - name: Check out baseline for size comparison
+        if: github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: .size-baseline
+      - name: Build baseline image without publishing
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v6
+        with:
+          context: .size-baseline
+          file: .size-baseline/${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: arturo:baseline
+      - name: Report image storage comparison
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          baseline=$(docker image inspect arturo:baseline --format '{{.Size}}')
+          current=$(docker image inspect arturo:validation --format '{{.Size}}')
+          awk -v name="$DOCKERFILE" -v base="$baseline" -v current="$current" \
+            'BEGIN {
+              printf "IMAGE_SIZE_BYTES %s %.0f %.0f\n", name, base, current;
+              print "| Dockerfile | Before (MiB) | After (MiB) | Saved (MiB) | Saved (%) |";
+              print "|---|---:|---:|---:|---:|";
+              printf "| %s | %.2f | %.2f | %.2f | %.1f%% |\n", name, base/1048576, current/1048576, (base-current)/1048576, 100*(base-current)/base;
+            }' | tee -a "$GITHUB_STEP_SUMMARY"
+          printf '\nUncompressed Linux amd64 image sizes, measured with Docker image inspect. Baseline commit: `%s`. Negative savings indicate growth.\n' "$BASE_SHA" >> "$GITHUB_STEP_SUMMARY"
